@@ -165,6 +165,12 @@ def train_batch(
 
 
 def allreduce(model, optimizer, gradient_accumulator, loss, mlm_loss, mlm_acc, sop_loss, sop_acc):
+    loss = hvd.allreduce(loss)
+    mlm_loss = hvd.allreduce(mlm_loss)
+    mlm_acc = hvd.allreduce(mlm_acc)
+    sop_loss = hvd.allreduce(sop_loss)
+    sop_acc = hvd.allreduce(sop_acc)
+
     scaled_grads = gradient_accumulator.gradients
     grads = optimizer.get_unscaled_gradients(scaled_grads)
     # This, which is equivalent to sparse_as_dense=True, gives a mild 2% speedup from 0.62 it/s to 0.63 it/s
@@ -199,14 +205,10 @@ def allreduce(model, optimizer, gradient_accumulator, loss, mlm_loss, mlm_acc, s
         ]
     )
 
+    # I think the gradient accumulation + allreduce is being marked as the even steps
+
     # Clear the gradient accumulator
     gradient_accumulator.reset()
-
-    loss = hvd.allreduce(loss)
-    mlm_loss = hvd.allreduce(mlm_loss)
-    mlm_acc = hvd.allreduce(mlm_acc)
-    sop_loss = hvd.allreduce(sop_loss)
-    sop_acc = hvd.allreduce(sop_acc)
 
     return loss, mlm_loss, mlm_acc, sop_loss, sop_acc, grad_norm, weight_norm
 
@@ -361,7 +363,7 @@ def main():
         log_args,
         path_args,
         remaining_strings,
-    ) = parser.parse_args_into_dataclasses(return_remaining_strings=True)
+    ) = parser.parse_args_into_dataclasses(return_remaining_strings=True, look_for_args_file=True)
     # SageMaker may have some extra strings. TODO: Test this on SM.
     assert len(remaining_strings) == 0, f"The args {remaining_strings} could not be parsed."
 
@@ -503,19 +505,25 @@ def main():
 
     i = 1
     start_time = time.perf_counter()
-    for batch in train_dataset:
+    train_iter = iter(train_dataset)
+    tf.profiler.experimental.start(
+        "/fsx/tfprofile", tf.profiler.experimental.ProfilerOptions(host_tracer_level=2)
+    )
+    while True:
         learning_rate = optimizer.learning_rate(step=tf.constant(i, dtype=tf.float32))
         # weight_decay = wd_schedule(step=tf.constant(i, dtype=tf.float32))
         loss_scale = optimizer.loss_scale()
-        loss, mlm_loss, mlm_acc, sop_loss, sop_acc, grad_norm, weight_norm = train_step(
-            model=model,
-            optimizer=optimizer,
-            gradient_accumulator=gradient_accumulator,
-            batch=batch,
-            gradient_accumulation_steps=train_args.gradient_accumulation_steps,
-            skip_sop=skip_sop,
-            skip_mlm=skip_mlm,
-        )
+        with tf.profiler.experimental.Trace("train", step=i, _r=1):
+            batch = next(train_iter)
+            loss, mlm_loss, mlm_acc, sop_loss, sop_acc, grad_norm, weight_norm = train_step(
+                model=model,
+                optimizer=optimizer,
+                gradient_accumulator=gradient_accumulator,
+                batch=batch,
+                gradient_accumulation_steps=train_args.gradient_accumulation_steps,
+                skip_sop=skip_sop,
+                skip_mlm=skip_mlm,
+            )
 
         # Don't want to wrap broadcast_variables() in a tf.function, can lead to asynchronous errors
         if i == 1:
@@ -524,8 +532,6 @@ def main():
             hvd.broadcast_variables(model.variables, root_rank=0)
             hvd.broadcast_variables(optimizer.variables(), root_rank=0)
             i = optimizer.get_weights()[0]
-            if hvd.rank() == 0:
-                tf.profiler.experimental.start("/fsx/tfprofile")
 
         is_final_step = i >= train_args.total_steps
         do_squad = (log_args.squad_frequency != 0) and (
