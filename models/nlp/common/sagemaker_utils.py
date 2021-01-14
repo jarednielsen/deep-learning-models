@@ -78,18 +78,17 @@ def launch_sagemaker_job(
         file_system_access_mode="rw",
     )
     # Create the job template
+    breakpoint()
     estimator_hvd = TensorFlow(
         base_job_name=job_name,
         entry_point=entry_point,
         source_dir=source_dir,
         role=role,
-        framework_version="2.1.0",
-        py_version="py3",
         hyperparameters=hyperparameters,
         instance_count=instance_count,
         instance_type=instance_type,
         distribution=distribution,
-        image_name=image_name,
+        image_uri=image_name,
         subnets=subnet_ids,
         security_group_ids=security_group_ids,
         enable_sagemaker_metrics=True,
