@@ -21,10 +21,14 @@ class PathArguments:
     val_dir: str = field(metadata={"help": "A folder containing TFRecords"})
 
     filesystem_prefix: str = field(
-        default="/fsx", metadata={"help": "Change to '/opt/ml/input/data/training' on SageMaker",},
+        default="/fsx",
+        metadata={
+            "help": "Change to '/opt/ml/input/data/training' on SageMaker",
+        },
     )
     log_dir: str = field(
-        default="logs/default", metadata={"help": "For example, 'logs/albert' or 'logs/squad'"},
+        default="logs/default",
+        metadata={"help": "For example, 'logs/albert' or 'logs/squad'"},
     )
     checkpoint_dir: str = field(
         default="checkpoints/default",
@@ -129,7 +133,7 @@ class ModelArguments:
 
 @dataclass
 class DataTrainingArguments:
-    """ Arguments related to the dataset preparation.
+    """Arguments related to the dataset preparation.
 
     Task name, sequence length, and filepath fall under this category, but batch size does not.
     """
@@ -143,7 +147,7 @@ class DataTrainingArguments:
 
 @dataclass
 class LoggingArguments:
-    """ Related to validation and finetuning evaluation.
+    """Related to validation and finetuning evaluation.
 
     This can have a significant impact on runtime (squad_frequency), so it seems a tad disingenuous
     to call them logging arguments. Maybe change later.
@@ -181,7 +185,7 @@ class SageMakerArguments:
     role: str = field(default=None)
     image_name: str = field(default=None)
     fsx_id: str = field(default=None)
-    fsx_mount_name: str = field(default="fsx")
+    fsx_mount_name: str = field(default=None)
     subnet_ids: str = field(default=None, metadata={"help": "Comma-separated string"})
     security_group_ids: str = field(default=None, metadata={"help": "Comma-separated string"})
     instance_type: str = field(

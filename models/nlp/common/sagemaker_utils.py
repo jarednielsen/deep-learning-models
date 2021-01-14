@@ -58,10 +58,12 @@ def launch_sagemaker_job(
 ) -> None:
     """ Create a SageMaker job connected to FSx and Horovod. """
     assert fsx_mount_name[0] != "/", "fsx_mount_name should not start with a '/'"
-    hvd_processes_per_host = {"ml.p3dn.24xlarge": 8, "ml.p3.16xlarge": 8, "ml.g4dn.12xlarge": 4,}[
-        instance_type
-    ]
-    distributions = {
+    hvd_processes_per_host = {
+        "ml.p3dn.24xlarge": 8,
+        "ml.p3.16xlarge": 8,
+        "ml.g4dn.12xlarge": 4,
+    }[instance_type]
+    distribution = {
         "mpi": {
             "enabled": True,
             "processes_per_host": hvd_processes_per_host,
@@ -84,14 +86,14 @@ def launch_sagemaker_job(
         framework_version="2.1.0",
         py_version="py3",
         hyperparameters=hyperparameters,
-        train_instance_count=instance_count,
-        train_instance_type=instance_type,
-        distributions=distributions,
+        instance_count=instance_count,
+        instance_type=instance_type,
+        distribution=distribution,
         image_name=image_name,
         subnets=subnet_ids,
         security_group_ids=security_group_ids,
         enable_sagemaker_metrics=True,
-        train_max_run=2419200,
+        max_run=432000,
     )
     # Launch the job
     estimator_hvd.fit(fsx_input)
