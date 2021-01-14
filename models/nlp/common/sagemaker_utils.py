@@ -78,7 +78,6 @@ def launch_sagemaker_job(
         file_system_access_mode="rw",
     )
     # Create the job template
-    breakpoint()
     estimator_hvd = TensorFlow(
         base_job_name=job_name,
         entry_point=entry_point,
